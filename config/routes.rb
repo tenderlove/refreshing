@@ -1,3 +1,3 @@
-LiveCoding::Engine.routes.draw do
+Refreshing::Engine.routes.draw do
   get "/" => "refresh#index"
 end

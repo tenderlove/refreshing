@@ -1,8 +1,8 @@
-require_relative "lib/live_coding/version"
+require_relative "lib/refreshing/version"
 
 Gem::Specification.new do |spec|
-  spec.name        = "live_coding"
-  spec.version     = LiveCoding::VERSION
+  spec.name        = "refreshing"
+  spec.version     = Refreshing::VERSION
   spec.authors     = ["Aaron Patterson"]
   spec.email       = ["tenderlove@ruby-lang.org"]
   spec.homepage    = "https://example.com"

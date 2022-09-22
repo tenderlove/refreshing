@@ -1,4 +1,4 @@
-module LiveCoding
+module Refreshing
   class RefreshController < ApplicationController
     include ActionController::Live
 

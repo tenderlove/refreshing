@@ -1,3 +1,3 @@
-module LiveCoding
+module Refreshing
   VERSION = "0.1.0"
 end

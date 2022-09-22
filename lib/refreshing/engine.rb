@@ -1,12 +1,12 @@
-module LiveCoding
+module Refreshing
   class Engine < ::Rails::Engine
-    isolate_namespace LiveCoding
+    isolate_namespace Refreshing
 
-    initializer "live_coding.importmap", before: "importmap" do |app|
+    initializer "refreshing.importmap", before: "importmap" do |app|
       app.config.importmap.paths << Engine.root.join("config/importmap.rb")
     end
 
-    initializer "love_coding.assets.precompile" do |app|
+    initializer "refreshing.assets.precompile" do |app|
       app.config.assets.precompile += %w( refreshing.js )
     end
   end
