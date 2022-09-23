@@ -6,9 +6,13 @@ module Refreshing
       response.headers['Content-Type'] = 'text/event-stream'
       response.headers['Last-Modified'] = Time.now.httpdate
       sse = SSE.new(response.stream, event: "status")
-      10.times do
-        sse.write('hello world')
-        sleep 1
+      Refreshing::MSGS.clear
+      while msg = Refreshing::MSGS.shift
+        sse.write(JSON.dump(msg))
+        if msg["type"] == "refresh"
+          response.stream.close
+          return
+        end
       end
     end
   end

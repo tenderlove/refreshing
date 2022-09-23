@@ -1,0 +1,5 @@
+<script>
+<%= Refreshing::JS.html_safe %>
+</script>
+<% send_exception(@_assigns[:exception]) %>
+<%= render template: "rescues/#{Refreshing::EX_TEMPLATES[@_assigns[:exception].class.name]}", layout:  false, locals: local_assigns %>
