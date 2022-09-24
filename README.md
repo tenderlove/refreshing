@@ -1,28 +1,31 @@
 # Refreshing
-Short description and motivation.
 
-## Usage
-How to use my plugin.
+This is a Rails engine that adds language server support to Rails applications.
+It is a very very extremely POC code, so please don't ask for any assistance!!
 
-## Installation
-Add this line to your application's Gemfile:
+I have it configured in Vim like this:
+
+```
+if filereadable(".livecode")
+  au User lsp_setup
+        \ call lsp#register_server({
+        \      'name': 'cool-lsp',
+        \      'cmd': ["nc", "localhost", "2000"],
+        \      'allowlist': ['ruby', 'eruby'],
+        \ })
+endif
+```
+
+The target app just needs to mount the engine like so:
 
 ```ruby
-gem "refreshing"
+Rails.application.routes.draw do
+  mount Refreshing::Engine => "/refreshing"
+end
 ```
 
-And then execute:
-```bash
-$ bundle
+AFAIK this only works with Falcon in threaded mode:
+
 ```
-
-Or install it yourself as:
-```bash
-$ gem install refreshing
+bundle exec falcon --threaded
 ```
-
-## Contributing
-Contribution directions go here.
-
-## License
-The gem is available as open source under the terms of the [MIT License](https://opensource.org/licenses/MIT).
