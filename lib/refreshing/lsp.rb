@@ -32,6 +32,12 @@ module Refreshing
       end
     end
 
+    class Workspace
+      def initialize root
+        @root = root
+      end
+    end
+
     class Events
       EVENT_MAP = Ractor.make_shareable({
         "initialize"             => :on_initialize,
@@ -40,6 +46,7 @@ module Refreshing
         "textDocument/didChange" => :did_change,
         "textDocument/didClose"  => :did_close,
         "textDocument/didSave"   => :did_save,
+        "textDocument/hover"     => :on_hover,
       })
 
       attr_reader :files
@@ -62,18 +69,72 @@ module Refreshing
 
       private
 
+      def on_hover request, writer
+        $stderr.puts request.inspect
+        uri = request.dig(:params, :textDocument, :uri)
+        text = @files[uri].text
+        line = text.lines[request.dig(:params, :position, :line)]
+        $stderr.puts line
+        idx  = request.dig(:params, :position, :character)
+        token = line[/^.{#{idx}}\w+/][/\w+$/]
+        $stderr.puts token
+        value = "Omg!!"
+
+        if token && token =~ /^[A-Z]/
+          const = Object.const_get(token)
+          value = "# #{const.name}\n"
+          if const < ActiveRecord::Base
+            name_header = "Column Name"
+            type_header = "Column Type"
+            info = [[name_header, type_header]] + const.columns.map { |column|
+              [column.name.to_s, column.type.to_s]
+            }
+            max_name_len = info.map(&:first).sort_by(&:length).last.length
+            max_type_len = info.map(&:last).sort_by(&:length).last.length
+
+            name_header, type_header = *info.shift
+            value << ("| " + name_header.ljust(max_name_len))
+            value << (" | " + type_header.ljust(max_type_len) + " |\n")
+            value << ("| " + ("-" * max_name_len))
+            value << (" | " + ("-" * max_type_len) + " |\n")
+            info.each do |name, type|
+              value << ("| " + name.ljust(max_name_len))
+              value << (" | " + type.ljust(max_type_len) + " |\n")
+            end
+          end
+        end
+        result = {
+          contents: {
+            kind: "markdown",
+            value: value
+          }
+        }
+        writer.write(id: request[:id], result: result)
+      end
+
+      Opened = Struct.new(:uri, :text, :version)
+
+      class Changed < Struct.new(:parent, :content_changes, :version)
+        def text
+          content_changes.first[:text]
+        end
+      end
+
       def did_open request, writer
         doc = request.dig(:params, :textDocument)
 
         # store the original version
-        @files[doc[:uri]] = doc[:version]
+        @files[doc[:uri]] = Opened.new(doc[:uri], doc[:text], doc[:version])
       end
 
       def did_change request, writer
         doc = request.dig(:params, :textDocument)
 
-        # bump the version if we're out of date
-        @files[doc[:uri]] = doc[:version] if @files[doc[:uri]] < doc[:version]
+        wrapper = @files[doc[:uri]]
+        version = doc[:version]
+
+        wrapper = Changed.new(wrapper, request.dig(:params, :contentChanges), version)
+        @files[doc[:uri]] = wrapper
       end
 
       def did_save request, writer
@@ -92,7 +153,11 @@ module Refreshing
           "capabilities" => {
             "textDocumentSync" => {
               "openClose" => true,"change" => 1,"save" => true
-            }
+            },
+            "diagnosticProvider" => {
+              "interFileDependencies" => true,
+            },
+            "hoverProvider" => true,
           }
         }
 

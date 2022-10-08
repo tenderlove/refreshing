@@ -21,7 +21,9 @@ module Refreshing
           $stderr.puts "HIIII"
           begin
             Refreshing::LSP.run_lsp client, client
-          rescue
+          rescue Exception => e
+            $stderr.puts e.inspect
+            $stderr.puts e.backtrace.inspect
             $stderr.puts "exited yikes"
             Refreshing::LSP::ERROR_QUEUE << nil
           end
