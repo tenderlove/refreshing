@@ -40,13 +40,14 @@ module Refreshing
 
     class Events
       EVENT_MAP = Ractor.make_shareable({
-        "initialize"             => :on_initialize,
-        "initialized"            => :on_initialized,
-        "textDocument/didOpen"   => :did_open,
-        "textDocument/didChange" => :did_change,
-        "textDocument/didClose"  => :did_close,
-        "textDocument/didSave"   => :did_save,
-        "textDocument/hover"     => :on_hover,
+        "initialize"              => :on_initialize,
+        "initialized"             => :on_initialized,
+        "textDocument/didOpen"    => :did_open,
+        "textDocument/didChange"  => :did_change,
+        "textDocument/didClose"   => :did_close,
+        "textDocument/didSave"    => :did_save,
+        "textDocument/hover"      => :on_hover,
+        "textDocument/definition" => :on_definition,
       })
 
       attr_reader :files
@@ -69,6 +70,35 @@ module Refreshing
 
       private
 
+      def on_definition request, writer
+        $stderr.puts request.inspect
+        # {:id=>2, :jsonrpc=>"2.0", :method=>"textDocument/definition", :params=>{:textDocument=>{:uri=>"file:///Users/aaron/git/blogsite/app/views/posts/index.html.erb"}, :position=>{:character=>24, :line=>4}}}
+        uri = request.dig(:params, :textDocument, :uri)
+        text = @files[uri].text
+        line = text.lines[request.dig(:params, :position, :line)]
+        idx  = request.dig(:params, :position, :character)
+        token = line[/^.{#{idx}}\w+/][/\w+$/]
+        $stderr.puts token
+
+        result = {}
+        if token && token =~ /^([a-z_]+)(_path|_url)$/
+          # check if it's a route helper
+          if Rails.application.routes.named_routes.key?($1)
+            route = Rails.application.routes.named_routes.get($1)
+            file, line = route.source_location.split(':')
+            file = File.join(@root, file)
+            char = File.readlines(file)[line.to_i].index(/[^\s]/)
+            uri = "file://" + file
+            result[:uri] = uri
+            result[:range] = {
+              start: { line: line.to_i - 1, character: char }
+            }
+            writer.write(id: request[:id], result: result)
+          else
+          end
+        end
+      end
+
       def on_hover request, writer
         $stderr.puts request.inspect
         uri = request.dig(:params, :textDocument, :uri)
@@ -80,26 +110,38 @@ module Refreshing
         $stderr.puts token
         value = "Omg!!"
 
-        if token && token =~ /^[A-Z]/
-          const = Object.const_get(token)
-          value = "# #{const.name}\n"
-          if const < ActiveRecord::Base
-            name_header = "Column Name"
-            type_header = "Column Type"
-            info = [[name_header, type_header]] + const.columns.map { |column|
-              [column.name.to_s, column.type.to_s]
-            }
-            max_name_len = info.map(&:first).sort_by(&:length).last.length
-            max_type_len = info.map(&:last).sort_by(&:length).last.length
+        if token && token =~ /^([a-z_]+)(_path|_url)$/
+          # check if it's a route helper
+          if Rails.application.routes.named_routes.key?($1)
+            route = Rails.application.routes.named_routes.get($1)
+            controller = route.requirements[:controller]
+            action = route.requirements[:action]
+            value = "URI Pattern:       #{route.path.spec.to_s}\nController#Action: #{controller}##{action}"
+          else
+            value = "Something else"
+          end
+        else
+          if token && token =~ /^[A-Z]/
+            const = Object.const_get(token)
+            value = "# #{const.name}\n"
+            if const < ActiveRecord::Base
+              name_header = "Column Name"
+              type_header = "Column Type"
+              info = [[name_header, type_header]] + const.columns.map { |column|
+                [column.name.to_s, column.type.to_s]
+              }
+              max_name_len = info.map(&:first).sort_by(&:length).last.length
+              max_type_len = info.map(&:last).sort_by(&:length).last.length
 
-            name_header, type_header = *info.shift
-            value << ("| " + name_header.ljust(max_name_len))
-            value << (" | " + type_header.ljust(max_type_len) + " |\n")
-            value << ("| " + ("-" * max_name_len))
-            value << (" | " + ("-" * max_type_len) + " |\n")
-            info.each do |name, type|
-              value << ("| " + name.ljust(max_name_len))
-              value << (" | " + type.ljust(max_type_len) + " |\n")
+              name_header, type_header = *info.shift
+              value << ("| " + name_header.ljust(max_name_len))
+              value << (" | " + type_header.ljust(max_type_len) + " |\n")
+              value << ("| " + ("-" * max_name_len))
+              value << (" | " + ("-" * max_type_len) + " |\n")
+              info.each do |name, type|
+                value << ("| " + name.ljust(max_name_len))
+                value << (" | " + type.ljust(max_type_len) + " |\n")
+              end
             end
           end
         end
@@ -157,6 +199,7 @@ module Refreshing
             "diagnosticProvider" => {
               "interFileDependencies" => true,
             },
+            "definitionProvider" => true,
             "hoverProvider" => true,
           }
         }
